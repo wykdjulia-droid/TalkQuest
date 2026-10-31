@@ -790,7 +790,7 @@ function rdPicker(dis){
 }
 function startTasks(){
   const cls=teacherClass(); if(!cls) return;
-  cls.lesson={tasks:Object.keys(T.tasks).filter(k=>T.tasks[k])};
+  cls.lesson={tasks:Object.keys(T.tasks).filter(k=>T.tasks[k]),at:now()};
   const rd=cls.lesson.tasks.map(findTask).find(isRD);
   if(rd) for(const sid in cls.roster){ const st=S.students[sid]; if(st){ if(st.rdAnsId) delete st.rdAnsId[cls.code+':rd']; if(st.rdSent) delete st.rdSent[cls.code+':rd']; if(st.rdNotes) delete st.rdNotes[cls.code+':rd']; } }
   cls.brain = cls.lesson.tasks.includes('brain') ? {topic:String(S.brainTopic||'').trim(), run:now(), moves:{}} : null;
@@ -827,7 +827,8 @@ function studentView(){
   const inClass=!!(cls&&cls.roster[SID]);
   if(m.classCode&&!inClass){ m.classCode=null; if(!cls) m.closedNotice=true; else m.booted=true; save(); }
 
-  if(inClass && cls.active){ if(ST.sub==='shop'){ const lost=ED&&changed(m,ED.draft); ST.sub=null; ED=null; setTimeout(()=>toast(lost?'Tasks have started! Your unsaved changes were reset. ✏️':'Tasks have started! ✏️'),50); } return classView(m,cls); }
+  if(inClass && cls.active){ const run=cls.code+':'+((cls.lesson&&cls.lesson.at)||'')+':'+(((cls.lesson||{}).tasks||[])[0]||'');
+    if(ST.autoRun!==run && cls.lesson && (cls.lesson.tasks||[]).length===1 && findTask(cls.lesson.tasks[0])){ ST.autoRun=run; if(ST.sub==='shop'){ const lost=ED&&changed(m,ED.draft); setTimeout(()=>toast(lost?'Tasks have started! Your unsaved changes were reset. ✏️':'Tasks have started! ✏️'),50); } ST.sub=null; ED=null; openTask(cls.lesson.tasks[0],true); return classView(m,cls); } if(ST.sub==='shop'){ const lost=ED&&changed(m,ED.draft); ST.sub=null; ED=null; setTimeout(()=>toast(lost?'Tasks have started! Your unsaved changes were reset. ✏️':'Tasks have started! ✏️'),50); } return classView(m,cls); }
   if(ST.play){ ST.play=null; setTimeout(()=>toast('Task finished! Back to your class home 🏠'),50); }
   if(ST.sub==='shop') return editorView('shop');
   if(!inClass && (ST.sub==='join'||m.booted)) return joinView(m);
@@ -904,7 +905,7 @@ function stageView(m){
   return `<div class="stage" id="stage" style="--grassimg:url(${GRASS})"><div class="who" id="buddy">${charCanvas(m.character,0.36,'idle')}${SPELL_SHOW&&SPELL_SHOW.until>now()?`<div class="spellbubble popin"><span class="label">It's spelled</span><b>${esc(SPELL_SHOW.word)}</b></div>`:''}</div>
     <div class="score"><span class="stat">⭐ ${m.points}</span></div></div>`;
 }
-function openTask(id){ const m=me(); const cls=S.classes[m.classCode]; ST.play={id,qi:0,score:0,ans:null,practice:!!(m.progress[cls.code+':'+id]),done:false,intro:true}; render(); }
+function openTask(id,auto){ const m=me(); const cls=S.classes[m.classCode]; ST.play={id,qi:0,score:0,ans:null,practice:!!(m.progress[cls.code+':'+id]),done:false,intro:false}; qStart(); if(!auto) render(); }
 function playView(m,cls){
   const p=ST.play, t=findTask(p.id);
   if(!t){ ST.play=null; return ''; }
