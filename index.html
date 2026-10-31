@@ -226,6 +226,36 @@ textarea#rd-text:disabled{background:#faf6f2;color:#8a7a86}
 .markbtns{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
 .markbtns .btn{min-width:38px}
 body.offline::after{content:"⚠️ Reconnecting…";position:fixed;bottom:12px;left:12px;z-index:99;background:#fff6ea;border:2px solid #f0d4b6;color:#a0703a;border-radius:999px;padding:6px 14px;font-weight:700;font-size:14px}
+.quiet .popin,.quiet .namechip,.quiet tr.pop td{animation:none!important}
+.timerrow{display:flex;align-items:center;justify-content:center;gap:28px;margin:6px 0}
+.timerrow .countdown{margin:0}
+.timerrow #buddy{position:relative;left:auto;bottom:auto;transform:none;flex:none}
+.timerrow #buddy canvas{width:92px!important;height:161px!important}
+.cornerbuddy{pointer-events:none;position:absolute!important;right:24px;top:52px;left:auto!important;bottom:auto!important;transform:none!important;z-index:2}
+.cornerbuddy canvas{width:80px!important;height:140px!important}
+.wrap.has-stage .panel:has(.cornerbuddy) h2{padding-right:100px}
+.answertext{white-space:pre-wrap}
+.qrow{display:flex;align-items:center;justify-content:space-between;gap:16px}
+.qrow h2{flex:1}
+.qbuddy{position:relative!important;left:auto!important;bottom:auto!important;transform:none!important;flex:none;pointer-events:none}
+.qbuddy canvas{width:72px!important;height:126px!important}
+
+.mindmap{width:100%;height:auto;display:block;margin-top:6px}
+.mm-l{stroke:#e9b8cb;stroke-width:3}
+.mm-l2{stroke:#b9d6ee;stroke-width:2.5}
+.mm-center{fill:url(#none);fill:#f49ab6;stroke:#fff;stroke-width:6;filter:drop-shadow(0 6px 12px rgba(232,138,170,.35))}
+.mm-ctext{fill:#fff;font-family:"Mochiy Pop One","Zen Maru Gothic",sans-serif;font-size:26px;text-anchor:middle}
+.mm-g rect{fill:#fff3d9;stroke:#f3d29a;stroke-width:2.5}
+.mm-g text{fill:#7a5418;font-weight:700;font-size:20px;text-anchor:middle;font-family:"Zen Maru Gothic",sans-serif}
+.mm-w rect{fill:#aed6f1;stroke:#fff;stroke-width:2}
+.mm-w text{fill:#2f5f86;font-weight:700;font-size:16px;text-anchor:middle;font-family:"Zen Maru Gothic",sans-serif}
+.mm-g,.mm-w{cursor:pointer}
+.mm-g.sel rect,.mm-w.sel rect{stroke:#e88aaa;stroke-width:4}
+.mm-c{fill:#f49ab6;stroke:#fff;stroke-width:2}
+.mm-ct{fill:#fff;font-size:12px;font-weight:700;text-anchor:middle;font-family:"Zen Maru Gothic",sans-serif}
+.mm-more{fill:#a08f9c;font-size:13px;text-anchor:middle}
+.mmwait{position:relative}.mmwait .tb-msg{position:absolute;left:0;right:0;bottom:24px}
+.btn{white-space:nowrap}
 </style>
 </head>
 <body>
@@ -416,9 +446,9 @@ function load(){
    Everything shared lives in one tree: classes, students, teacher stuff.
    Each device keeps a copy in S; save() sends only what changed (leaf by leaf),
    points are sent as +/- amounts so two devices never overwrite each other. */
-let DB=null, ONLINE=false, SYNCED=null, REMOTE_JSON='';
+let QUIET=false; let DB=null, ONLINE=false, SYNCED=null, REMOTE_JSON='';
 const clone=o=>JSON.parse(JSON.stringify(o));
-function shared(){ return {classes:S.classes||{}, students:S.students||{}, teacher:{quizzes:S.quizzes||[], vocabText:S.vocabText||'', spellText:S.spellText||'', teacherClass:S.teacherClass||null}}; }
+function shared(){ return {classes:S.classes||{}, students:S.students||{}, teacher:{quizzes:S.quizzes||[], brainTopic:S.brainTopic||'', vocabText:S.vocabText||'', spellText:S.spellText||'', teacherClass:S.teacherClass||null}}; }
 function strip(v){ // what Firebase would actually store (no empties, no nulls)
   if(Array.isArray(v)){ const a=v.map(strip); return a.some(x=>x!==undefined)?a.map(x=>x===undefined?null:x):undefined; }
   if(v&&typeof v==='object'){ const o={}; let any=false; for(const k of Object.keys(v).sort()){ const x=strip(v[k]); if(x!==undefined){ o[k]=x; any=true; } } return any?o:undefined; }
@@ -447,6 +477,7 @@ function normalize(){
   for(const k in S.students){ const st=S.students[k]; st.progress=st.progress||{}; if(st.owned){ st.owned.items=st.owned.items||[]; st.owned.acc=st.owned.acc||[]; } }
   if(S.quizzes) S.quizzes.forEach(q=>{ q.questions=q.questions||[]; q.questions.forEach(x=>{ if(!x.open) x.choices=x.choices||[]; }); });
 }
+let SAVE_T=null; function saveSoon(){ clearTimeout(SAVE_T); SAVE_T=setTimeout(save,700); }
 function save(){
   try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){}
   if(!ONLINE) return;
@@ -463,10 +494,10 @@ function goOnline(){
     const first=!ONLINE; ONLINE=true;
     if(!first && j===REMOTE_JSON) return;   // just our own change coming back
     REMOTE_JSON=j; const t=v.teacher||{};
-    S.classes=v.classes||{}; S.students=v.students||{}; S.quizzes=t.quizzes||[]; S.vocabText=t.vocabText||''; S.spellText=t.spellText||''; S.teacherClass=t.teacherClass||null;
+    S.classes=v.classes||{}; S.students=v.students||{}; S.quizzes=t.quizzes||[]; S.vocabText=t.vocabText||''; S.brainTopic=t.brainTopic||''; S.spellText=t.spellText||''; S.teacherClass=t.teacherClass||null;
     normalize(); SYNCED=clone(shared());
     try{ localStorage.setItem(KEY,JSON.stringify(S)); }catch(e){}
-    if(IMAGES_READY) render();
+    if(IMAGES_READY){ QUIET=!first; render(); }
   });
   return true;
 }
@@ -506,11 +537,13 @@ const ALL_TASKS=[]; for(const b in CHAPTERS) for(const ch of CHAPTERS[b]) ALL_TA
 ALL_TASKS.push({id:'spell',name:'Spell it! ✏️',type:'spell',questions:[]});
 ALL_TASKS.push({id:'vocab',name:'Learn vocabulary 📚',type:'vocab',questions:[]});
 ALL_TASKS.push({id:'pron',name:'Pronunciation 🎤',type:'pron',questions:[]});
+ALL_TASKS.push({id:'brain',name:'Brainstorm 💡',type:'brain',questions:[]});
 ALL_TASKS.push({id:'rd',name:'Running dictation 🏃',type:'rd',questions:[]});
 const isRD=t=>t&&t.type==='rd';
 const isVocab=t=>t&&(t.type==='vocab'||t.type==='pron');
 const isSpell=t=>t&&t.type==='spell';
-const taskSub=t=>t.type==='quiz'?`${t.questions.length} questions · timed`:isSpell(t)?'Teacher-led · 1 minute per word':isRD(t)?'Timed activity':t.type==='pron'?'Say each word · iPad listens':isVocab(t)?'Teacher-led · repeat & quiz':`${t.questions.length} questions`;
+const isBrain=t=>t&&t.type==='brain';
+const taskSub=t=>isBrain(t)?'Mind map · students send key words':t.type==='quiz'?`${t.questions.length} questions · timed`:isSpell(t)?'Teacher-led · 1 minute per word':isRD(t)?'Timed activity':t.type==='pron'?'Say each word · iPad listens':isVocab(t)?'Teacher-led · repeat & quiz':`${t.questions.length} questions`;
 const QTIMES=[[10,'10 seconds'],[20,'20 seconds'],[30,'30 seconds'],[60,'1 minute']];
 function quizTasks(){ return (S.quizzes||[]).map(q=>({id:'quiz_'+q.id,name:'📝 '+q.name,type:'quiz',questions:q.questions})); }
 function allTasks(){ return [...quizTasks(),...ALL_TASKS]; }
@@ -556,7 +589,7 @@ function go(screen){
 const app=document.getElementById('app');
 function render(){
   const keep={}; document.querySelectorAll('#app input[id],#app textarea[id]').forEach(i=>{ if(!i.dataset.nokeep) keep[i.id]=i.value; });
-  const focusId=document.activeElement&&document.activeElement.id;
+  const ae=document.activeElement, focusId=ae&&ae.id; let selS=null,selE=null; try{ if(ae&&'selectionStart' in ae){ selS=ae.selectionStart; selE=ae.selectionEnd; } }catch(e){}
   let html='';
   if(V.screen==='landing') html=landingView();
   else if(V.screen==='tlogin') html=tLoginView();
@@ -564,7 +597,13 @@ function render(){
   else html=studentView();
   app.innerHTML=html;
   for(const id in keep){const el=document.getElementById(id); if(el && el.type!=='password') el.value=keep[id];}
-  if(focusId){const el=document.getElementById(focusId); if(el) el.focus();}
+  if(focusId){const el=document.getElementById(focusId); if(el){ el.focus(); if(selS!=null){ try{ el.setSelectionRange(selS,selE); }catch(e){} } } }
+  app.classList.toggle('quiet',QUIET); QUIET=false;
+  // during timed tasks the buddy stands right next to the timer
+  const bd=document.getElementById('buddy');
+  if(bd){ const cd=app.querySelector('.countdown');
+    if(cd){ const row=document.createElement('div'); row.className='timerrow'; cd.parentNode.insertBefore(row,cd); row.appendChild(cd); row.appendChild(bd); }
+    else if(ST.play&&!ST.play.intro){ const h=app.querySelector('.wrap.has-stage .panel h2'); if(h){ const row=document.createElement('div'); row.className='qrow'; h.parentNode.insertBefore(row,h); row.appendChild(h); bd.classList.add('qbuddy'); row.appendChild(bd); } } }
   document.querySelectorAll('canvas[data-char]').forEach(cv=>drawChar(cv,JSON.parse(decodeURIComponent(cv.dataset.char)),cv.dataset.crop));
   const isl=document.getElementById('island'); if(isl) drawIsland(isl,islandT);
 }
@@ -643,8 +682,9 @@ function teacherView(){
   let lesson=`<div class="panel"><div class="label">Task</div><h2>Choose a task</h2>
     ${allTasks().map(t=>`<label class="taskcard" style="cursor:pointer">
       <span><input type="checkbox" ${T.tasks[t.id]?'checked':''} ${dis} onchange="toggleTask('${t.id}')" style="transform:scale(1.4);margin-right:10px">${esc(t.name)}</span>
-      <span class="label">${taskSub(t)}</span></label>`).join('')}${rdPicker(dis)}${vocabInput(dis)}${spellInput(dis)}`;
-  const vocabOK=(!(T.tasks.vocab||T.tasks.pron)||vocabWords().length>=2)&&(!T.tasks.spell||spellWords().length>=1);
+      <span class="label">${taskSub(t)}</span></label>`).join('')}${rdPicker(dis)}${vocabInput(dis)}${spellInput(dis)}${brainInput(dis)}`;
+  const brainOK=!T.tasks.brain||!!String(S.brainTopic||'').trim();
+  const vocabOK=brainOK&&(!(T.tasks.vocab||T.tasks.pron)||vocabWords().length>=2)&&(!T.tasks.spell||spellWords().length>=1);
   const canStart=cls&&chosen.length&&vocabOK;
   lesson+=`<div class="row" style="margin-top:16px">`;
   if(running){
@@ -652,7 +692,7 @@ function teacherView(){
       <button class="btn danger" onclick="stopTasks()">■ End task</button>`;
   } else {
     lesson+=`<button id="startbtn" class="btn primary big" ${canStart?'':'disabled'} onclick="startTasks()">▶ Start task</button>
-      <span class="muted">${!cls?'Create a class space first.':!chosen.length?'Tick a task.':!vocabOK?(T.tasks.spell?'Add some spelling words.':'Add at least 2 vocabulary words.'):'Ready when you are!'}</span>`;
+      <span class="muted">${!cls?'Create a class space first.':!chosen.length?'Tick a task.':!vocabOK?(!brainOK?'Type a brainstorm topic.':T.tasks.spell?'Add some spelling words.':'Add at least 2 vocabulary words.'):'Ready when you are!'}</span>`;
   }
   lesson+=`</div></div>`;
 
@@ -677,7 +717,7 @@ function teacherView(){
 
   return `<div class="wrap"><header class="top"><div><h1 class="title">Talk Quest</h1><div class="label">Teacher's classroom</div></div>
     <div class="row"><button class="btn small" onclick="tLogout()">Log out</button></div></header>
-    ${running?endBar(cls):''}${cls&&cls.active&&cls.spell?spellBoard(cls):''}${cls&&cls.active&&cls.vocab?vocabBoard(cls):''}${cls&&cls.active&&cls.timer?timerBoard(cls):''}${cls?boardView(cls):''}${cls?markPanel(cls):''}${list}${classPanel}${lesson}${quizPanel()}</div>`;
+    ${running?endBar(cls):''}${cls&&cls.active&&cls.brain?brainBoard(cls):''}${cls&&cls.active&&cls.spell?spellBoard(cls):''}${cls&&cls.active&&cls.vocab?vocabBoard(cls):''}${cls&&cls.active&&cls.timer?timerBoard(cls):''}${cls?boardView(cls):''}${cls?markPanel(cls):''}${list}${classPanel}${lesson}${quizPanel()}</div>`;
 }
 
 /* big board banner for the classroom screen: join code + who has joined */
@@ -747,6 +787,8 @@ function startTasks(){
   const cls=teacherClass(); if(!cls) return;
   cls.lesson={tasks:Object.keys(T.tasks).filter(k=>T.tasks[k])};
   const rd=cls.lesson.tasks.map(findTask).find(isRD);
+  if(rd) for(const sid in cls.roster){ const st=S.students[sid]; if(st){ if(st.rdSent) delete st.rdSent[cls.code+':rd']; if(st.rdNotes) delete st.rdNotes[cls.code+':rd']; } }
+  cls.brain = cls.lesson.tasks.includes('brain') ? {topic:String(S.brainTopic||'').trim(), run:now(), moves:{}} : null;
   cls.spell = cls.lesson.tasks.includes('spell') ? {words:spellWords(), order:shuffle(spellWords().map((_,i)=>i)), qi:-1, phase:'prompt', endsAt:0, run:now()} : null;
   const words=vocabWords(); const vt=cls.lesson.tasks.find(id=>id==='vocab'||id==='pron');
   cls.vocab = vt ? {mode:vt, words, phase:vt==='pron'?'record':'repeat', round:1, idx:0, order:words.map((_,i)=>i), quiz:null, run:now()} : null;
@@ -759,7 +801,7 @@ function timerPause(){ const cls=teacherClass(); if(!cls||!cls.timer) return; co
 function timerResume(){ const cls=teacherClass(); if(!cls||!cls.timer) return; const t=cls.timer; if(!t.paused) return; t.endsAt=now()+t.left; t.paused=false; save(); render(); }
 function endBar(cls){ const t=findTask((cls.lesson.tasks||[])[0]); return `<div class="endbar"><span>▶ Now playing: <b>${esc(t?t.name:'Task')}</b></span><button class="btn danger big" onclick="endTask()">■ End task</button></div>`; }
 async function endTask(){ if(!await ask('End this task?<br><span class="muted">Everyone goes back to their class home screen (they stay in the class).</span>','End task','Keep going')) return; stopTasks(); toast('Task ended ✨'); }
-function stopTasks(){ const cls=teacherClass(); if(!cls) return; cls.active=false; cls.timer=null; cls.vocab=null; cls.spell=null; save(); render(); }
+function stopTasks(){ const cls=teacherClass(); if(!cls) return; cls.active=false; cls.timer=null; cls.vocab=null; cls.spell=null; cls.brain=null; save(); render(); }
 function award(sid,n){ const st=S.students[sid]; if(!st) return; st.points=Math.max(0,(st.points||0)+n); if(n>0) st.lastAward={n,t:now()}; save(); render(); toast(n>0?`+${n} ⭐ sent!`:`${n} points`); }
 function awardAll(n){ const cls=teacherClass(); if(!cls) return; const t=now(); for(const sid in cls.roster){ const st=S.students[sid]; if(st){st.points=(st.points||0)+n; st.lastAward={n,t};} } save(); render(); toast(`+${n} ⭐ for everyone!`); }
 async function boot(sid){
@@ -864,6 +906,7 @@ function playView(m,cls){
   if(isRD(t)) return rdView(m,cls,t,p);
   if(isVocab(t)) return vocabView(m,cls,t,p);
   if(isSpell(t)) return spellView(m,cls,t,p);
+  if(isBrain(t)) return brainView(m,cls,t,p);
   if(p.intro){
     const mc=t.questions.some(q=>q.choices), ty=t.questions.some(q=>!q.choices);
     const how=t.intro || (t.type==='quiz'?(t.questions.some(x=>x.open)?'Tap the right answer, or type your answer when there are no choices. Your teacher marks typed answers! ⏱':'Read each question and tap the right answer before the timer runs out! ⏱'):mc&&ty?'Some questions have choices to tap, and some need you to type the answer in English.':mc?'Read each question and tap the right answer.':'Read each question, type your answer in English, then press Check.');
@@ -990,12 +1033,24 @@ function rdView(m,cls,t,p){
       <div class="row" style="margin-top:16px"><button class="btn primary big" onclick="unlockAudio();ST.play.intro=false;render()">Let's go! ✨</button><button class="btn" onclick="ST.play=null;render()">Back</button></div></div></div>`;
   const pz=!!(tm&&tm.paused), up=!tm||(!pz&&tm.endsAt<=now());
   if(up && !m.progress[key]){ m.progress[key]={score:0,total:0,t:now()}; save(); }
+  m.rdSent=m.rdSent||{}; const sent=m.rdSent[key];
+  if(up && !sent && (m.rdNotes[key]||'').trim()) setTimeout(()=>rdSend(true),0);
   return `<div class="panel timerboard ${up?'up':''}"><div class="row" style="justify-content:space-between"><div class="label">🏃 Running dictation</div><button class="btn small" onclick="ST.play=null;render()">✕ Back</button></div>
     ${tm?countdown(tm.endsAt,'huge',pz?tm.left:null):''}
     <div class="tb-msg">${up?"🔔 Time's up! Pens down!":pz?'⏸ Your teacher paused the timer':'Write what your partner tells you!'}</div>
-    <textarea id="rd-text" ${up?'disabled':''} placeholder="Write the passage here…" oninput="me().rdNotes['${key}']=this.value;save()">${esc(m.rdNotes[key]||'')}</textarea></div>`;
+    <textarea id="rd-text" ${up||sent?'disabled':''} placeholder="Write the passage here…" oninput="me().rdNotes['${key}']=this.value;saveSoon()">${esc(m.rdNotes[key]||'')}</textarea>
+    ${sent?`<div class="ok-note popin" style="margin-top:12px">✉️ Sent to your teacher! They'll give you up to ⭐ 10 points.</div>`
+      :`<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary big" ${up&&!(m.rdNotes[key]||'').trim()?'disabled':''} onclick="rdSend(false)">Send ✉️</button></div>`}</div>`;
 }
 
+function rdSend(auto){
+  const m=me(), cls=S.classes[m.classCode]; if(!cls) return; const key=cls.code+':rd';
+  const el=document.getElementById('rd-text'); if(el&&!el.disabled) m.rdNotes[key]=el.value;
+  const text=(m.rdNotes[key]||'').trim(); m.rdSent=m.rdSent||{}; if(m.rdSent[key]||!text) return;
+  m.rdSent[key]=true; m.openAns=m.openAns||[];
+  m.openAns.push({id:now().toString(36)+Math.random().toString(36).slice(2,6),code:m.classCode,quiz:'Running dictation 🏃',qi:0,q:'Write the passage',text,mark:null,t:now()});
+  save(); render(); react(true); toast(auto?"🔔 Time's up! Your writing was sent ✉️":'Sent to your teacher ✉️');
+}
 /* ---------- learn vocabulary: repeat after me → say it → speed quiz ---------- */
 const shuffle=a=>{ a=a.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
 const vnorm=w=>String(w).toLowerCase().replace(/[^a-z0-9' ]+/g,' ').replace(/\s+/g,' ').trim();
@@ -1237,7 +1292,7 @@ function markPanel(cls){
   if(!all.length) return '';
   return `<div class="panel"><div class="row" style="justify-content:space-between"><div><div class="label">Typed quiz answers</div><h2>✉️ Answers to mark ${todo.length?`<span class="board-count">${todo.length}</span>`:''}</h2></div>
     <span class="muted">${done} marked</span></div>
-    ${todo.length?todo.map(a=>`<div class="markcard"><div class="label">${esc(a.quiz)} · Q${a.qi+1} · ${esc(a.q)}</div>
+    ${todo.length?todo.map(a=>`<div class="markcard"><div class="label">${esc(a.quiz)}${a.quiz.startsWith('Running')?'':` · Q${a.qi+1} · ${esc(a.q)}`}</div>
       <div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:nowrap"><div><b>No. ${a.number} ${esc(a.name)}</b><div class="answertext">“${esc(a.text)}”</div></div></div>
       <div class="markbtns">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="btn small gold" onclick="markAnswer('${a.sid}','${a.id}',${n})">${n}</button>`).join('')}<button class="btn small" onclick="markAnswer('${a.sid}','${a.id}',0)">✕ 0</button></div></div>`).join('')
       :'<div class="empty">All caught up! 🌸</div>'}</div>`;
@@ -1295,6 +1350,101 @@ function saveQuiz(){
   S.quizzes=S.quizzes||[]; const rec={id:QE.id||('q'+now().toString(36)),name,questions};
   const i=S.quizzes.findIndex(x=>x.id===rec.id); if(i>=0) S.quizzes[i]=rec; else S.quizzes.push(rec);
   QE=null; save(); render(); toast(`Saved “${esc(name)}” ✨`);
+}
+
+/* ---------- Brainstorm: students send key words → live mind map ---------- */
+function brainInput(dis){
+  if(!T.tasks.brain) return '';
+  return `<div class="field" style="margin:4px 4px 0"><span class="label">💡 Brainstorm topic (shown in the middle of the mind map)</span>
+    <input id="braintopic" data-nokeep="1" type="text" maxlength="40" ${dis} value="${esc(S.brainTopic||'')}" placeholder="e.g. My weekend" oninput="S.brainTopic=this.value;saveSoon();const b=document.getElementById('startbtn'); if(b) b.disabled=!(teacherClass()&&this.value.trim())"></div>`;
+}
+const bnorm=w=>String(w).toLowerCase().replace(/[^a-z0-9'\- ]+/g,' ').replace(/\s+/g,' ').trim();
+function bforms(x){ const f=new Set([x]); const add=y=>{ if(y&&y.length>=2) f.add(y); };
+  add(x.replace(/s$/,'')); add(x.replace(/es$/,'')); add(x.replace(/ies$/,'y')); add(x.replace(/ing$/,'')); add(x.replace(/ing$/,'e')); add(x.replace(/ed$/,'')); add(x.replace(/d$/,''));
+  add(x.replace(/([^aeiou])\1ing$/,'$1')); return f; }
+function bstem(w){ return w.split(' ').map(x=>[...bforms(x)].sort((a,b)=>a.length-b.length)[0]).filter(Boolean).join(' '); }
+function bsame(a,b){ const A=bforms(a), B=bforms(b); for(const x of A) if(B.has(x)) return true; return false; }
+function brainWords(cls){
+  const b=cls.brain, map={};
+  for(const sid in cls.roster){ const st=S.students[sid]||{}; const list=((st.brain||{})[cls.code+':'+b.run])||[];
+    for(const w of list){ const n=bnorm(w); if(!n) continue; (map[n]=map[n]||{word:w.trim(),n,count:0,who:[]}); map[n].count++; map[n].who.push(cls.roster[sid].name); } }
+  return Object.values(map);
+}
+function brainGroups(cls){
+  const words=brainWords(cls), moves=cls.brain.moves||{}, groups=[];
+  const close=(a,b)=>{ const sa=bstem(a.n), sb=bstem(b.n); if(sa===sb||bsame(a.n,b.n)) return true;
+    const ta=a.n.split(' '), tb=b.n.split(' '); if(ta.length!==tb.length){ const [sh,lo]=ta.length<tb.length?[ta,tb]:[tb,ta]; if(sh.every(x=>lo.some(y=>bsame(x,y)))) return true; }
+    if(sa.length>=4&&sb.length>=4&&(sa.startsWith(sb)||sb.startsWith(sa))) return true;
+    const L=Math.max(sa.length,sb.length); return L>=5 && lev(sa,sb)<=1; };
+  for(const w of words.sort((a,b)=>b.count-a.count)){
+    if(moves[w.n]){ let g=groups.find(g=>g.key===moves[w.n]); if(!g){ g={key:moves[w.n],items:[]}; groups.push(g); } g.items.push(w); continue; }
+    const g=groups.find(g=>g.items.some(x=>!moves[x.n]&&close(x,w)));
+    if(g) g.items.push(w); else groups.push({key:w.n,items:[w]});
+  }
+  groups.forEach(g=>{ g.items.sort((a,b)=>b.count-a.count); g.total=g.items.reduce((a,x)=>a+x.count,0); g.head=g.items[0]; });
+  return groups.sort((a,b)=>b.total-a.total);
+}
+let BSEL=null;
+function brainTap(n,groupKey){
+  const cls=teacherClass(); if(!cls||!cls.brain) return;
+  if(BSEL&&BSEL!==n){ cls.brain.moves=cls.brain.moves||{}; cls.brain.moves[BSEL]=groupKey; BSEL=null; save(); render(); return; }
+  BSEL=BSEL===n?null:n; render();
+}
+function brainUngroup(){ const cls=teacherClass(); if(!cls||!BSEL) return; cls.brain.moves=cls.brain.moves||{}; cls.brain.moves[BSEL]='solo:'+BSEL; BSEL=null; save(); render(); }
+function brainMap(cls,interactive){
+  const G=brainGroups(cls), W=1000, H=620, cx=W/2, cy=H/2;
+  const fit=(t,max)=>t.length>max?t.slice(0,max-1)+'…':t;
+  let lines='', nodes='';
+  const n=G.length;
+  G.forEach((g,i)=>{
+    const ang=-Math.PI/2+i*2*Math.PI/Math.max(n,1)+(n%2?0:Math.PI/n/2);
+    const r1=n<=4?185:205, gx=cx+Math.cos(ang)*r1*1.35, gy=cy+Math.sin(ang)*r1;
+    lines+=`<line x1="${cx}" y1="${cy}" x2="${gx}" y2="${gy}" class="mm-l"/>`;
+    const head=g.head, hw=Math.max(110,fit(head.word,16).length*12+46);
+    const others=g.items.slice(1,7);
+    others.forEach((w,j)=>{
+      const spread=0.95, a2=ang+(others.length>1?(-spread/2+spread*j/(others.length-1)):0);
+      const r2=120+(j%2)*36, wx=gx+Math.cos(a2)*r2*1.25, wy=gy+Math.sin(a2)*r2*0.78;
+      const ww=Math.max(80,fit(w.word,14).length*10+40);
+      lines+=`<line x1="${gx}" y1="${gy}" x2="${wx}" y2="${wy}" class="mm-l2"/>`;
+      nodes+=`<g class="mm-w ${BSEL===w.n?'sel':''}" ${interactive?`onclick="brainTap('${w.n.replace(/'/g,"\\'")}','${g.key.replace(/'/g,"\\'")}')"`:''}><rect x="${wx-ww/2}" y="${wy-17}" width="${ww}" height="34" rx="17"/><text x="${wx}" y="${wy+6}">${esc(fit(w.word,14))}</text>${w.count>1?`<circle cx="${wx+ww/2-4}" cy="${wy-15}" r="11" class="mm-c"/><text x="${wx+ww/2-4}" y="${wy-11}" class="mm-ct">${w.count}</text>`:''}</g>`;
+    });
+    if(g.items.length>7) nodes+=`<text x="${gx}" y="${gy+44}" class="mm-more">+${g.items.length-7} more</text>`;
+    nodes+=`<g class="mm-g ${BSEL===head.n?'sel':''}" ${interactive?`onclick="brainTap('${head.n.replace(/'/g,"\\'")}','${g.key.replace(/'/g,"\\'")}')"`:''}><rect x="${gx-hw/2}" y="${gy-24}" width="${hw}" height="48" rx="14"/><text x="${gx}" y="${gy+7}">${esc(fit(head.word,16))}</text>${g.total>1?`<circle cx="${gx+hw/2-4}" cy="${gy-22}" r="13" class="mm-c"/><text x="${gx+hw/2-4}" y="${gy-17}" class="mm-ct">${g.total}</text>`:''}</g>`;
+  });
+  const topic=cls.brain.topic||'Brainstorm';
+  const words=topic.split(' '); const lines2=[]; let cur='';
+  words.forEach(w=>{ if((cur+' '+w).trim().length>12&&cur){ lines2.push(cur); cur=w; } else cur=(cur+' '+w).trim(); }); if(cur) lines2.push(cur);
+  nodes+=`<circle cx="${cx}" cy="${cy}" r="88" class="mm-center"/>`+lines2.slice(0,3).map((l,i)=>`<text x="${cx}" y="${cy+8+(i-(Math.min(lines2.length,3)-1)/2)*30}" class="mm-ctext">${esc(l)}</text>`).join('');
+  return `<svg class="mindmap" viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet">${lines}${nodes}</svg>`;
+}
+function brainBoard(cls){
+  const n=brainWords(cls).reduce((a,w)=>a+w.count,0);
+  return `<div class="panel timerboard vocabboard"><div class="row" style="justify-content:space-between"><div class="label">💡 Brainstorm · ${n} ${n===1?'word':'words'} so far</div>
+    ${BSEL?`<div class="row"><span class="muted" style="font-size:14px">Tap another group to move <b>${esc(BSEL)}</b> there</span><button class="btn small" onclick="brainUngroup()">Make its own group</button><button class="btn small" onclick="BSEL=null;render()">Cancel</button></div>`:'<span class="muted" style="font-size:14px">Tip: tap a word, then a group, to move it</span>'}</div>
+    ${n?brainMap(cls,true):`<div class="mmwait">${brainMap(cls,false)}<div class="tb-msg">Waiting for ideas… 💭</div></div>`}</div>`;
+}
+function brainView(m,cls,t,p){
+  const b=cls.brain; if(!b) return `<div class="panel"><p>Your teacher hasn't set the topic yet. 🌱</p><button class="btn" onclick="ST.play=null;render()">Back</button></div>`;
+  if(p.intro) return `<div class="panel popin sensei-card"><img class="sensei" src="${TEACHER_POSE}" alt="">
+      <div style="flex:1"><div class="label">${esc(t.name)}</div>
+      <div class="speech"><b>Brainstorm time! 💡✌️</b><br>Our topic is <b>“${esc(b.topic)}”</b>.<br>Type one key word at a time and press Send. Send as many as you can think of! They'll pop up on the big mind map.</div>
+      <div class="row" style="margin-top:16px"><button class="btn primary big" onclick="ST.play.intro=false;render()">Let's go! ✨</button><button class="btn" onclick="ST.play=null;render()">Back</button></div></div></div>`;
+  const key=cls.code+':'+b.run; m.brain=m.brain||{}; const mine=m.brain[key]||[];
+  return `<div class="panel timerboard"><div class="row" style="justify-content:space-between"><div class="label">💡 Brainstorm</div><button class="btn small" onclick="ST.play=null;render()">✕ Back</button></div>
+    <div class="bigword" style="font-size:54px">${esc(b.topic)}</div><div class="tb-msg">Type one key word, then press Send!</div>
+    <form onsubmit="event.preventDefault();brainSend()"><div class="row" style="flex-wrap:nowrap;max-width:560px;margin:0 auto">
+      <input id="bw-${mine.length}" type="text" maxlength="30" autocomplete="off" autocapitalize="off" placeholder="e.g. soccer" style="font-size:24px;text-align:center">
+      <button class="btn primary big" type="submit">Send ✉️</button></div></form>
+    ${mine.length?`<div class="vprog" style="margin-top:16px">${mine.map(w=>`<span class="namechip" style="cursor:default">${esc(w)}</span>`).join('')}</div>`:''}</div>`;
+}
+function brainSend(){
+  const m=me(), cls=S.classes[m.classCode], b=cls&&cls.brain; if(!b) return;
+  const el=document.querySelector('#app input[id^="bw-"]'); const w=(el?el.value:'').trim(); if(!w) return;
+  const key=cls.code+':'+b.run; m.brain=m.brain||{}; const list=m.brain[key]=m.brain[key]||[];
+  if(list.some(x=>bnorm(x)===bnorm(w))){ toast('You already sent that one! Try another 💭'); el.value=''; return; }
+  list.push(w); save(); render(); react(true);
+  const ni=document.querySelector('#app input[id^="bw-"]'); if(ni) ni.focus();
 }
 /* ---------- character creator & shop ---------- */
 function openShop(){ ST.sub='shop'; ED=null; render(); }
