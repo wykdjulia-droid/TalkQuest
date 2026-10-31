@@ -256,6 +256,11 @@ body.offline::after{content:"⚠️ Reconnecting…";position:fixed;bottom:12px;
 .mm-more{fill:#a08f9c;font-size:13px;text-anchor:middle}
 .mmwait{position:relative}.mmwait .tb-msg{position:absolute;left:0;right:0;bottom:24px}
 .btn{white-space:nowrap}
+.markcard.marked{background:#fbfaf7;border-style:dashed}
+.markhead{display:flex;align-items:center;gap:8px;font-size:18px;margin-bottom:4px}
+.markhead canvas{border-radius:50%;background:linear-gradient(180deg,#e3f2fc,#fdeef3);border:2px solid #fff}
+.markhead .no{display:inline-grid;place-items:center;min-width:28px;height:28px;border-radius:999px;background:var(--blue-l);color:#5b8fb8;font-size:14px;font-weight:700}
+.markscore{margin-left:auto;padding:2px 12px;border-radius:999px;background:linear-gradient(180deg,#fff0c8,#f5c973);color:#7a5418;font-weight:700}
 </style>
 </head>
 <body>
@@ -787,7 +792,7 @@ function startTasks(){
   const cls=teacherClass(); if(!cls) return;
   cls.lesson={tasks:Object.keys(T.tasks).filter(k=>T.tasks[k])};
   const rd=cls.lesson.tasks.map(findTask).find(isRD);
-  if(rd) for(const sid in cls.roster){ const st=S.students[sid]; if(st){ if(st.rdSent) delete st.rdSent[cls.code+':rd']; if(st.rdNotes) delete st.rdNotes[cls.code+':rd']; } }
+  if(rd) for(const sid in cls.roster){ const st=S.students[sid]; if(st){ if(st.rdAnsId) delete st.rdAnsId[cls.code+':rd']; if(st.rdSent) delete st.rdSent[cls.code+':rd']; if(st.rdNotes) delete st.rdNotes[cls.code+':rd']; } }
   cls.brain = cls.lesson.tasks.includes('brain') ? {topic:String(S.brainTopic||'').trim(), run:now(), moves:{}} : null;
   cls.spell = cls.lesson.tasks.includes('spell') ? {words:spellWords(), order:shuffle(spellWords().map((_,i)=>i)), qi:-1, phase:'prompt', endsAt:0, run:now()} : null;
   const words=vocabWords(); const vt=cls.lesson.tasks.find(id=>id==='vocab'||id==='pron');
@@ -1039,16 +1044,23 @@ function rdView(m,cls,t,p){
     ${tm?countdown(tm.endsAt,'huge',pz?tm.left:null):''}
     <div class="tb-msg">${up?"🔔 Time's up! Pens down!":pz?'⏸ Your teacher paused the timer':'Write what your partner tells you!'}</div>
     <textarea id="rd-text" ${up||sent?'disabled':''} placeholder="Write the passage here…" oninput="me().rdNotes['${key}']=this.value;saveSoon()">${esc(m.rdNotes[key]||'')}</textarea>
-    ${sent?`<div class="ok-note popin" style="margin-top:12px">✉️ Sent to your teacher! They'll give you up to ⭐ 10 points.</div>`
+    ${sent?(()=>{ const a=myAns(m,(m.rdAnsId||{})[key]); const marked=a&&a.mark!=null;
+        return `<div class="ok-note popin" style="margin-top:12px">${marked?`✔ Your teacher marked this: ⭐ ${a.mark}`:"✉️ Sent to your teacher! They'll give you up to ⭐ 10 points."}</div>${!up&&!marked?`<div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn" onclick="rdEdit()">✎ Edit my answer</button></div>`:''}`; })()
       :`<div class="row" style="justify-content:flex-end;margin-top:12px"><button class="btn primary big" ${up&&!(m.rdNotes[key]||'').trim()?'disabled':''} onclick="rdSend(false)">Send ✉️</button></div>`}</div>`;
 }
 
+function myAns(m,id){ return (m.openAns||[]).find(x=>x.id===id); }
+function sendAnswer(m,id,fields){ m.openAns=m.openAns||[]; const a=id&&myAns(m,id);
+  if(a&&a.mark==null){ Object.assign(a,fields,{t:now(),edited:true}); return a.id; }
+  const nid=now().toString(36)+Math.random().toString(36).slice(2,6); m.openAns.push({id:nid,code:m.classCode,mark:null,t:now(),...fields}); return nid; }
+function rdEdit(){ const m=me(), cls=S.classes[m.classCode]; if(!cls) return; const key=cls.code+':rd'; const a=myAns(m,(m.rdAnsId||{})[key]);
+  if(a&&a.mark!=null){ toast('Your teacher already marked this one ✔'); return; } m.rdSent[key]=false; save(); render(); const el=document.getElementById('rd-text'); if(el){ el.focus(); el.setSelectionRange(el.value.length,el.value.length); } }
 function rdSend(auto){
   const m=me(), cls=S.classes[m.classCode]; if(!cls) return; const key=cls.code+':rd';
   const el=document.getElementById('rd-text'); if(el&&!el.disabled) m.rdNotes[key]=el.value;
   const text=(m.rdNotes[key]||'').trim(); m.rdSent=m.rdSent||{}; if(m.rdSent[key]||!text) return;
-  m.rdSent[key]=true; m.openAns=m.openAns||[];
-  m.openAns.push({id:now().toString(36)+Math.random().toString(36).slice(2,6),code:m.classCode,quiz:'Running dictation 🏃',qi:0,q:'Write the passage',text,mark:null,t:now()});
+  m.rdSent[key]=true; m.rdAnsId=m.rdAnsId||{};
+  m.rdAnsId[key]=sendAnswer(m,m.rdAnsId[key],{quiz:'Running dictation 🏃',qi:0,q:'Write the passage',text});
   save(); render(); react(true); toast(auto?"🔔 Time's up! Your writing was sent ✉️":'Sent to your teacher ✉️');
 }
 /* ---------- learn vocabulary: repeat after me → say it → speed quiz ---------- */
@@ -1270,37 +1282,48 @@ function openQView(t,p,q){
     <button class="btn small" onclick="ST.play=null;render()">✕ Quit</button></div>
     ${timer}<h2 style="font-size:26px;margin:14px 0">${esc(q.q)}</h2>
     ${sent?`<div class="ok-note popin">${sent.text?`✉️ Sent to your teacher! They'll give you up to ⭐ 10 points.<br><b>“${esc(sent.text)}”</b>`:"⏱ Time's up! No answer was sent this time."}</div>
-      <button class="btn primary big" id="nextbtn" onclick="nextQ()">${p.qi+1<t.questions.length?'Next →':'Finish ✨'}</button>`
-    :`<form onsubmit="event.preventDefault();openSend(false)"><textarea id="oa-${p.qi}" class="vocab-input" maxlength="400" placeholder="Type your answer in English…" style="min-height:110px;font-size:19px"></textarea>
+      <div class="row">${sent.text&&!(myAns(me(),sent.id)||{}).mark?`<button class="btn" onclick="openEdit()">✎ Edit</button>`:''}<button class="btn primary big" id="nextbtn" onclick="nextQ()">${p.qi+1<t.questions.length?'Next →':'Finish ✨'}</button></div>`
+    :`<form onsubmit="event.preventDefault();openSend(false)"><textarea id="oa-${p.qi}" class="vocab-input" maxlength="400" placeholder="Type your answer in English…" style="min-height:110px;font-size:19px">${esc(p.editText||'')}</textarea>
       <div class="row" style="justify-content:flex-end;margin-top:10px"><button class="btn primary big" type="submit">Send ✉️</button></div></form>`}</div>`;
 }
 function openSend(timeout){
   const p=ST.play; if(!p||p.ans) return; const t=findTask(p.id), q=t.questions[p.qi];
   const el=document.getElementById('oa-'+p.qi); const text=(el?el.value:'').trim();
   if(!text&&!timeout) return;
-  p.ans={open:true,text};
-  if(text){ const m=me(); m.openAns=m.openAns||[];
-    m.openAns.push({id:now().toString(36)+Math.random().toString(36).slice(2,6),code:m.classCode,quiz:t.name,qi:p.qi,q:q.q,text,mark:null,t:now()}); save(); }
+  let id=p.editId||null;
+  if(text){ const m=me(); id=sendAnswer(m,id,{quiz:t.name,qi:p.qi,q:q.q,text}); save(); }
+  p.ans={open:true,text,id}; p.editId=null; p.editText='';
   render(); if(text) react(true);
 }
+function openEdit(){ const p=ST.play; if(!p||!p.ans) return; const a=myAns(me(),p.ans.id); if(a&&a.mark!=null){ toast('Your teacher already marked this one ✔'); return; }
+  p.editId=p.ans.id; p.editText=p.ans.text; p.ans=null; render(); const el=document.getElementById('oa-'+p.qi); if(el){ el.focus(); el.setSelectionRange(el.value.length,el.value.length); } }
 function pendingAnswers(cls){
   const out=[]; for(const sid in cls.roster){ const st=S.students[sid]||{}; (st.openAns||[]).forEach(a=>{ if(a.code===cls.code) out.push({...a,sid,name:cls.roster[sid].name,number:cls.roster[sid].number}); }); }
   return out.sort((a,b)=>a.t-b.t);
 }
+let SHOW_MARKED=true;
+function markCard(a,cls){
+  const st=S.students[a.sid]||{}, marked=a.mark!=null;
+  return `<div class="markcard ${marked?'marked':''}">
+    <div class="markhead">${st.character?charCanvas(st.character,0.22,'',true):''}<span class="no">${a.number}</span><b>${esc(a.name)}</b>${a.edited?'<span class="label" style="margin-left:6px">edited</span>':''}
+      ${marked?`<span class="markscore">⭐ ${a.mark}</span>`:''}</div>
+    <div class="label">${esc(a.quiz)}${a.quiz.startsWith('Running')?'':` · Q${a.qi+1} · ${esc(a.q)}`}</div>
+    <div class="answertext">“${esc(a.text)}”</div>
+    <div class="markbtns">${marked?'<span class="muted" style="font-size:13px;align-self:center">Change score:</span>':''}${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="btn small ${a.mark===n?'on':'gold'}" onclick="markAnswer('${a.sid}','${a.id}',${n})">${n}</button>`).join('')}<button class="btn small ${a.mark===0?'on':''}" onclick="markAnswer('${a.sid}','${a.id}',0)">✕ 0</button></div></div>`;
+}
 function markPanel(cls){
-  const all=pendingAnswers(cls), todo=all.filter(a=>a.mark==null), done=all.length-todo.length;
+  const all=pendingAnswers(cls), todo=all.filter(a=>a.mark==null), done=all.filter(a=>a.mark!=null);
   if(!all.length) return '';
-  return `<div class="panel"><div class="row" style="justify-content:space-between"><div><div class="label">Typed quiz answers</div><h2>✉️ Answers to mark ${todo.length?`<span class="board-count">${todo.length}</span>`:''}</h2></div>
-    <span class="muted">${done} marked</span></div>
-    ${todo.length?todo.map(a=>`<div class="markcard"><div class="label">${esc(a.quiz)}${a.quiz.startsWith('Running')?'':` · Q${a.qi+1} · ${esc(a.q)}`}</div>
-      <div class="row" style="justify-content:space-between;align-items:flex-start;flex-wrap:nowrap"><div><b>No. ${a.number} ${esc(a.name)}</b><div class="answertext">“${esc(a.text)}”</div></div></div>
-      <div class="markbtns">${[1,2,3,4,5,6,7,8,9,10].map(n=>`<button class="btn small gold" onclick="markAnswer('${a.sid}','${a.id}',${n})">${n}</button>`).join('')}<button class="btn small" onclick="markAnswer('${a.sid}','${a.id}',0)">✕ 0</button></div></div>`).join('')
-      :'<div class="empty">All caught up! 🌸</div>'}</div>`;
+  return `<div class="panel"><div class="label">Students' typed answers</div><h2>✉️ Answers to mark ${todo.length?`<span class="board-count">${todo.length}</span>`:''}</h2>
+    ${todo.length?todo.map(a=>markCard(a,cls)).join(''):'<div class="empty">All caught up! 🌸</div>'}
+    ${done.length?`<div class="row" style="justify-content:space-between;margin-top:18px"><h3 style="margin:0">Marked (${done.length})</h3><button class="btn small" onclick="SHOW_MARKED=!SHOW_MARKED;render()">${SHOW_MARKED?'Hide':'Show'}</button></div>
+      ${SHOW_MARKED?done.slice().reverse().map(a=>markCard(a,cls)).join(''):''}`:''}</div>`;
 }
 function markAnswer(sid,id,n){
-  const st=S.students[sid]; if(!st) return; const a=(st.openAns||[]).find(x=>x.id===id); if(!a||a.mark!=null) return;
-  a.mark=n; if(n>0){ st.points=(st.points||0)+n; st.lastAward={n,t:now()}; }
-  save(); render(); toast(n>0?`+${n} ⭐ for ${esc((teacherClass().roster[sid]||{}).name||'')}`:'Marked ✔');
+  const st=S.students[sid]; if(!st) return; const a=(st.openAns||[]).find(x=>x.id===id); if(!a||a.mark===n) return;
+  const was=a.mark!=null, old=a.mark||0, d=n-old; a.mark=n; st.points=Math.max(0,(st.points||0)+d); if(d>0) st.lastAward={n:d,t:now()};
+  const nm=esc((teacherClass().roster[sid]||{}).name||'');
+  save(); render(); toast(!was?(n?`+${n} ⭐ for ${nm}`:'Marked ✔'):`${nm}: score changed to ${n}`);
 }
 /* ---------- quiz maker (teacher) ---------- */
 let QE=null;   // quiz being edited
