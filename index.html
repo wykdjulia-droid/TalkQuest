@@ -687,6 +687,13 @@ function tLogin(){
   else V.pwErr=true;
   render();
 }
+async function resetDevice(){
+  const m=S.students[SID];
+  if(!await ask(`Reset the student on this device${m&&m.name?` (${esc(m.name)})`:''}? Their character, points and pet will be deleted, and they will start fresh.`,'Reset')) return;
+  if(m&&m.classCode&&S.classes[m.classCode]) delete S.classes[m.classCode].roster[SID];
+  delete S.students[SID]; SID='s'+Math.random().toString(36).slice(2,10); lsSet('tq_device',SID);
+  ED=null; PR=null; for(const k in ST) delete ST[k]; ST.sub=null; ST.play=null; ST.err=''; save(); toast('This device has been reset. 🌱');
+}
 function tLogout(){ ssSet('tq_t',''); go('landing'); }
 
 /* ---------- teacher dashboard ---------- */
@@ -752,7 +759,7 @@ function teacherView(){
   }
 
   return `<div class="wrap"><header class="top"><div><h1 class="title">Talk Quest</h1><div class="label">Teacher's classroom</div></div>
-    <div class="row"><button class="btn small" onclick="tLogout()">Log out</button></div></header>
+    <div class="row"><button class="btn small" onclick="resetDevice()">🔄 Reset this device's student</button><button class="btn small" onclick="tLogout()">Log out</button></div></header>
     ${running?endBar(cls):''}${cls&&cls.active&&cls.brain?brainBoard(cls):''}${cls&&cls.active&&cls.spell?spellBoard(cls):''}${cls&&cls.active&&cls.vocab?vocabBoard(cls):''}${cls&&cls.active&&cls.timer?timerBoard(cls):''}${cls?boardView(cls):''}${cls?markPanel(cls):''}${list}${classPanel}${lesson}${quizPanel()}</div>`;
 }
 
