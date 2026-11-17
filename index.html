@@ -264,6 +264,11 @@ body.offline::after{content:"⚠️ Reconnecting…";position:fixed;bottom:12px;
 /* ---------- pet corner ---------- */
 .tama{display:grid;grid-template-columns:minmax(220px,300px) 1fr;gap:20px;align-items:start}
 @media(max-width:640px){.tama{grid-template-columns:1fr}}
+.home .hometop{align-items:center;gap:10px;margin:4px 0 12px}
+.homescenes{display:flex;gap:18px;justify-content:center;align-items:stretch;margin:14px 0 18px;flex-wrap:wrap}
+.homescenes .preview{flex:0 1 300px;min-height:0}
+.homescenes .tframe{flex:0 1 300px;margin:0}
+.petopts{border-top:2px dashed #f0dbe5;padding-top:14px}
 .tframe{position:relative;border-radius:18px;padding:10px;background:linear-gradient(180deg,#f9d9a8,#e8b57a);box-shadow:inset 0 0 0 3px #fff3dc,0 0 0 3px #c98d55,0 8px 18px rgba(150,95,50,.25);max-width:300px;margin:0 auto;width:100%}
 .tframe canvas{display:block;width:100%;height:auto;border-radius:10px;image-rendering:pixelated;touch-action:manipulation;cursor:pointer;box-shadow:inset 0 0 0 2px #c98d55}
 .tframe .tsay{position:absolute;transform:translate(-50%,-100%);background:#fff;border:2px solid #e9b8c8;border-radius:12px;padding:3px 9px;font-size:13px;font-weight:700;color:#8a5a6a;white-space:nowrap;pointer-events:none;opacity:0;transition:opacity .25s}
@@ -864,20 +869,23 @@ function homeView(m,cls){
   let status, buttons;
   if(cls){
     status=`<div class="ok-note">You're in class <b>${cls.code}</b> as No. ${m.number} ${esc(m.name)}. Waiting for your teacher to start… ☕</div>`;
-    buttons=`<button class="btn primary big" onclick="openShop()">🛍 Shop</button><button class="btn" onclick="leaveClass()">Leave class</button>`;
+    buttons=`<button class="btn gold" onclick="openShop()">🛍 Shop</button><button class="btn" onclick="leaveClass()">Leave class</button>`;
   } else {
     status=m.closedNotice?`<div class="note">Your last class has finished. Join a new one any time! 🌷</div>`:'';
-    buttons=`<button class="btn primary big" onclick="ST.sub='join';render()">🏫 Join a class</button><button class="btn gold big" onclick="openShop()">🛍 Shop</button>`;
+    buttons=`<button class="btn primary" onclick="ST.sub='join';render()">🏫 Join a class</button><button class="btn gold" onclick="openShop()">🛍 Shop</button>`;
   }
+  const pc=petCorner(m);
   return `<div class="wrap">${topBar('Student')}
-    <div class="panel"><div class="grid2">
-      <div class="preview" style="--grassimg:url(${GRASS})"><div class="sky"></div>${charCanvas(m.character,0.66,'idle')}</div>
-      <div><h2>${m.name?`Hi, ${esc(m.name)}! 👋`:'Welcome back! 👋'}</h2>
-        <div class="row"><span class="stat">⭐ ${m.points} points</span></div>
-        ${status}
-        <p class="muted" style="margin-top:12px">Earn points by doing your teacher's tasks, then spend them in the shop on new looks. New outfits and accessories are coming soon!</p>
-        <div class="row" style="margin-top:16px">${buttons}</div>
-      </div></div></div>${petCorner(m)}</div>`;
+    <div class="panel home">
+      <h2>${m.name?`Hi, ${esc(m.name)}! 👋`:'Welcome back! 👋'}</h2>
+      <div class="row hometop"><span class="stat">⭐ ${m.points} points</span>${buttons}</div>
+      ${status}
+      <div class="homescenes">
+        <div class="preview" style="--grassimg:url(${GRASS})"><div class="sky"></div>${charCanvas(m.character,0.66,'idle')}</div>
+        ${pc.scene}
+      </div>
+      <div class="petopts">${pc.opts}</div>
+    </div></div>`;
 }
 
 function joinView(m){
@@ -1791,10 +1799,8 @@ function petCorner(m){
       <p class="muted" style="margin-top:10px;font-size:13px">Tap your pet to give them a cuddle (free!) 💗 · Tap a poop to clean it (⭐1).</p>
       <div class="row" style="margin-top:8px"><button class="btn small" onclick="ST.tamaPick='bg';render()">🏡 New home · ⭐${PET_PRICE.bg}</button><button class="btn small" onclick="ST.tamaPick='pet';render()">🐾 New pet · ⭐${PET_PRICE.newpet}</button></div>`;
   }
-  return `<div class="panel"><h2>🐾 Pet corner</h2><div class="tama">
-    <div class="tframe"><canvas id="tamacv" width="514" height="760" onpointerdown="tamaTap(event)"></canvas><div class="tsay" id="tsay"></div>
-      ${t.gone?`<div class="tgone">🌙<br>Your ${esc(n.toLowerCase())} has gone on a little journey…</div>`:''}</div>
-    <div>${side}</div></div></div>`;
+  return {scene:`<div class="tframe"><canvas id="tamacv" width="514" height="760" onpointerdown="tamaTap(event)"></canvas><div class="tsay" id="tsay"></div>
+      ${t.gone?`<div class="tgone">🌙<br>Your ${esc(n.toLowerCase())} has gone on a little journey…</div>`:''}</div>`, opts:side};
 }
 </script>
 </body>
