@@ -1597,7 +1597,7 @@ loadImages().then(()=>{ IMAGES_READY=true; render(); });
    Needs only go down while the student is looking at the pet corner,
    so pets never get sad (or leave) during tasks or when the iPad is away.
    ============================================================ */
-const PET_TYPES=[['frog','Frog'],['tit','Long-tailed tit'],['bunny','Pink bunny'],['bear','Bear cub'],['duck','Duckling'],['hamster','Hamster'],['piglet','Piglet'],['otter','Otter'],['quokka','Quokka'],['fawn','Fawn'],['kitten','Kitten'],['lamb','Lamb']];
+const PET_TYPES=[['frog','Frog'],['tit','Bird'],['bunny','Pink bunny'],['bear','Bear cub'],['duck','Duckling'],['hamster','Hamster'],['piglet','Piglet'],['otter','Otter'],['quokka','Quokka'],['fawn','Fawn'],['kitten','Kitten'],['lamb','Lamb'],['redpanda','Red panda'],['puppy','Puppy'],['monkey','Monkey']];
 const PET_NAME=k=>(PET_TYPES.find(p=>p[0]===k)||[k,k])[1];
 const PET_PRICE={feed:5,clean:1,play:5,bg:20,back:50,newpet:100};
 // where pets can walk on each background: [yMin,yMax,xMin,xMax] (fractions) and pet scale
@@ -1611,7 +1611,8 @@ function tamaImg(kind,k){
 }
 function tamaOf(m){
   if(!m.tama) m.tama={bg:Math.floor(Math.random()*8),pet:null,food:80,fun:80,poops:[],gone:false};
-  const t=m.tama; t.poops=t.poops||[]; if(!Array.isArray(t.poops)) t.poops=Object.values(t.poops);
+  const t=m.tama;
+  if(!t.pet){ t.pet=PET_TYPES[Math.floor(Math.random()*PET_TYPES.length)][0]; Object.assign(t,{food:80,fun:80,poops:[],gone:false,sad:0,poopIn:200}); t.isNew=1; setTimeout(saveSoon,0); } t.poops=t.poops||[]; if(!Array.isArray(t.poops)) t.poops=Object.values(t.poops);
   return t;
 }
 const tUnhappy=t=>t.food<25||t.fun<25||t.poops.length>=3;
@@ -1772,8 +1773,8 @@ function drawPetThumbs(){ document.querySelectorAll('canvas[data-petthumb]').for
   if(im.complete&&im.naturalWidth) go(); else im.addEventListener('load',go,{once:true}); }); }
 
 function petCorner(m){
-  if(!m.tama) setTimeout(saveSoon,0);
   const t=tamaOf(m), n=t.pet?PET_NAME(t.pet):'';
+  if(t.isNew){ delete t.isNew; setTimeout(()=>{ toast(`🎁 A ${n.toLowerCase()} has come to live with you!`); if(PR){ prDo('happy',2200); prSay('Nice to meet you! 💗',3000);} },700); }
   let side;
   if(ST.tamaPick==='bg'){
     side=`<h3>Choose a new home</h3><p class="muted">Moving costs ${PET_PRICE.bg} ⭐.</p>
