@@ -361,7 +361,7 @@ const MASKS = [['none','No mask'],['mask','Mask']];
 const PETS = [['none','No pet'],['bunny','Bunny'],['chick','Chick'],['cat','Kitty'],['puppy','Puppy'],['frog','Frog'],['bear','Bear']];
 const BASE_PRICE = 3;    // every option available today
 const NEW_PRICE = 12;    // accessories & extras added from now on: list them in NEW_ITEMS
-const NEW_ITEMS = {eyes:["0", "1", "2", "9", "10", "11", "12", "13", "14", "15", "16", "17"], mouth:["16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28"], hair:['longwavy','longstraight'], pet:['bunny','chick','cat','puppy','frog','bear'], hairColor:['blonde','pink','lilac','purple','skyblue']};    // e.g. {acc:['crown','glasses'], hair:['braids']}
+const NEW_ITEMS = {eyes:["0", "1", "2", "9", "10", "11", "12", "13", "14", "15", "16", "17"], mouth:["16", "17", "18", "19", "20", "21", "22", "23", "24", "25", "26", "27", "28"], hair:['longwavy','longstraight','curly'], pet:['bunny','chick','cat','puppy','frog','bear'], hairColor:['blonde','pink','lilac','purple','skyblue']};    // e.g. {acc:['crown','glasses'], hair:['braids']}
 const itemPrice=(k,v)=>SPECIAL_PRICE[k+':'+v]||((NEW_ITEMS[k]||[]).includes(v)?NEW_PRICE:BASE_PRICE);
 const itemKey=(k,v)=>k+':'+v;
 // sleeves only matter when wearing "shirt only"
