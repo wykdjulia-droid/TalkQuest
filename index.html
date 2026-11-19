@@ -1615,14 +1615,15 @@ function tamaImg(kind,k){
 function tamaOf(m){
   if(!m.tama) m.tama={bg:Math.floor(Math.random()*8),pet:null,food:80,fun:80,poops:[],gone:false};
   const t=m.tama;
-  if(!t.pet){ t.pet=PET_TYPES[Math.floor(Math.random()*PET_TYPES.length)][0]; Object.assign(t,{food:80,fun:80,poops:[],gone:false,sad:0,poopIn:200}); t.isNew=1; setTimeout(saveSoon,0); } t.poops=t.poops||[]; if(!Array.isArray(t.poops)) t.poops=Object.values(t.poops);
+  if(!t.pet){ t.pet=PET_TYPES[Math.floor(Math.random()*PET_TYPES.length)][0]; Object.assign(t,{food:80,fun:80,poops:[],gone:false,sad:0,poopIn:360,clean:100}); t.isNew=1; setTimeout(saveSoon,0); } t.poops=t.poops||[]; if(!Array.isArray(t.poops)) t.poops=Object.values(t.poops);
   return t;
 }
-const tUnhappy=t=>t.food<25||t.fun<25||t.poops.length>=3;
+const tClean=t=>t.clean==null?100:t.clean;
+const tUnhappy=t=>t.food<25||t.fun<25||tClean(t)<25;
 function tMood(t){
   const n=PET_NAME(t.pet);
   if(t.food<25) return [`😢 Your ${n.toLowerCase()} is very hungry!`,true];
-  if(t.poops.length>=3) return [`😢 It's too messy! Please clean up.`,true];
+  if(tClean(t)<25) return [`😢 It's too messy! Please clean up.`,true];
   if(t.fun<25) return [`😢 Your ${n.toLowerCase()} is bored and lonely.`,true];
   if(t.food<50) return ['🍎 Getting a little hungry…',false];
   if(t.poops.length) return ['💩 Oops, time to tidy up!',false];
@@ -1652,14 +1653,16 @@ function tamaTick(){
     const slow=PR.act==='sleep'?0.5:1;
     t.food=Math.max(0,t.food-dt*slow*100/(15*60));     // full → empty in ~15 min of looking
     t.fun =Math.max(0,t.fun -dt*slow*100/(18*60));
-    t.poopIn=(t.poopIn==null?150+Math.random()*150:t.poopIn)-dt;
-    if(t.poopIn<=0&&PR.act!=='sleep'){ t.poopIn=180+Math.random()*180; if(t.poops.length<5){ const g=TAMA_GROUND[t.bg]; t.poops.push({x:+(Math.min(g[3],Math.max(g[2],PR.x+PR.dir*-0.09))).toFixed(3),y:+PR.y.toFixed(3)}); prSay('Oops! 💩'); } }
+    t.poopIn=(t.poopIn==null?300+Math.random()*240:t.poopIn)-dt;
+    // Clean only drains while there's poop: one poop takes about 6 minutes to reach red
+    if(t.poops.length) t.clean=Math.max(0,tClean(t)-dt*(75/360)*(1+0.5*(t.poops.length-1)));
+    if(t.poopIn<=0&&PR.act!=='sleep'){ t.poopIn=480+Math.random()*240; if(t.poops.length<5){ const g=TAMA_GROUND[t.bg]; t.poops.push({x:+(Math.min(g[3],Math.max(g[2],PR.x+PR.dir*-0.09))).toFixed(3),y:+PR.y.toFixed(3)}); prSay('Oops! 💩'); } }
     if(tUnhappy(t)){
       t.sad=(t.sad||0)+dt;
-      if(nowp-PR.lastWarn>15000){ PR.lastWarn=nowp; const [msg]=tMood(t); prSay(t.food<25?'I\'m hungry… 🍎':t.poops.length>=3?'So messy… 💩':'Play with me… ⚽',3500); if(PR.act!=='eat'&&PR.act!=='play') prDo('sad',2400); if(t.sad>120) toast(msg+' Please look after them, or they might leave! 🥺'); }
+      if(nowp-PR.lastWarn>15000){ PR.lastWarn=nowp; const [msg]=tMood(t); prSay(t.food<25?'I\'m hungry… 🍎':tClean(t)<25?'So messy… 💩':'Play with me… ⚽',3500); if(PR.act!=='eat'&&PR.act!=='play') prDo('sad',2400); if(t.sad>120) toast(msg+' Please look after them, or they might leave! 🥺'); }
       if(t.sad>=300){ t.gone=true; t.sad=0; PR.say=''; save(); render(); toast(`💔 Your ${PET_NAME(t.pet).toLowerCase()} felt lonely and wandered off…`); return; }
     } else t.sad=Math.max(0,(t.sad||0)-dt*3);
-    if(nowp-TAMA_SAVE>20000){ TAMA_SAVE=nowp; t.food=Math.round(t.food*10)/10; t.fun=Math.round(t.fun*10)/10; t.sad=Math.round(t.sad); t.poopIn=Math.round(t.poopIn); saveSoon(); }
+    if(nowp-TAMA_SAVE>20000){ TAMA_SAVE=nowp; t.food=Math.round(t.food*10)/10; t.fun=Math.round(t.fun*10)/10; t.sad=Math.round(t.sad); t.poopIn=Math.round(t.poopIn); if(t.clean!=null) t.clean=Math.round(t.clean*10)/10; saveSoon(); }
     tamaBars(t);
   }
   /* ---- behaviour ---- */
@@ -1685,7 +1688,7 @@ function tamaTick(){
 }
 function tamaBars(t){
   const set=(id,v)=>{ const el=document.getElementById(id); if(!el) return; el.style.width=Math.round(v)+'%'; el.className='fill'+(v<25?' low':v<50?' mid':''); };
-  set('tbFood',t.food); set('tbFun',t.fun); set('tbClean',Math.max(0,100-t.poops.length*30));
+  set('tbFood',t.food); set('tbFun',t.fun); set('tbClean',tClean(t));
   const md=document.getElementById('tMood'); if(md){ const [txt,sad]=tMood(t); if(md.textContent!==txt){ md.textContent=txt; md.className='tmood'+(sad?' sad':''); } }
 }
 function drawPoop(c,x,y,s){
@@ -1746,29 +1749,29 @@ function tamaTap(ev){
 }
 function tamaPay(n){ const m=me(); if(m.points<n){ toast(`You need ${n} ⭐ for that. Keep going in class! 🌱`); return false; } m.points-=n; return true; }
 function tamaFeed(){ const t=tamaOf(me()); if(t.food>=95){ prSay('I\'m full! 😋'); return; } if(!tamaPay(PET_PRICE.feed)) return;
-  t.food=100; t.sad=0; t.poopIn=Math.min(t.poopIn??999,40+Math.random()*50); PR.ball=null; prDo('eat',3000); prSay('Yum yum! 😋'); save(); render(); }
+  t.food=100; t.sad=0; t.poopIn=Math.min(t.poopIn??999,180+Math.random()*120); PR.ball=null; prDo('eat',3000); prSay('Yum yum! 😋'); save(); render(); }
 function tamaPlay(){ const t=tamaOf(me()); if(PR&&PR.ball) return; if(!tamaPay(PET_PRICE.play)) return;
   const g=TAMA_GROUND[t.bg]; t.fun=100; t.sad=0;
   PR.ball={x:PR.x<(g[2]+g[3])/2?g[3]-0.05:g[2]+0.05,y:PR.y,vx:0,spin:0,kicks:3}; PR.act='walk'; prSay('A ball! ⚽'); save(); render(); }
 function tamaClean(i){ const t=tamaOf(me()); if(!t.poops.length) return; if(!tamaPay(PET_PRICE.clean)) return;
-  t.poops.splice(i==null?t.poops.length-1:i,1); if(!tUnhappy(t)) t.sad=0; prSay('So fresh! ✨',1500); save(); render(); }
-function tamaCleanAll(){ const t=tamaOf(me()); const n=t.poops.length; if(!n) return; if(me().points<n) return toast(`Cleaning everything needs ${n} ⭐ (1 each).`); me().points-=n; t.poops=[]; t.sad=0; prSay('Sparkly clean! ✨'); save(); render(); }
+  t.poops.splice(i==null?t.poops.length-1:i,1); t.clean=t.poops.length?Math.min(100,tClean(t)+25):100; if(!tUnhappy(t)) t.sad=0; prSay('So fresh! ✨',1500); save(); render(); }
+function tamaCleanAll(){ const t=tamaOf(me()); const n=t.poops.length; if(!n) return; if(me().points<n) return toast(`Cleaning everything needs ${n} ⭐ (1 each).`); me().points-=n; t.poops=[]; t.clean=100; t.sad=0; prSay('Sparkly clean! ✨'); save(); render(); }
 async function tamaPickPet(k){
   const m=me(), t=tamaOf(m);
   if(t.pet===k&&!t.gone) return;
   const free=!t.pet;
   if(!free){ if(!await ask(`Adopt a ${PET_NAME(k).toLowerCase()} for ${PET_PRICE.newpet} ⭐?${t.gone?'':` Your ${PET_NAME(t.pet).toLowerCase()} will go to live with a friend.`}`,`Adopt (⭐${PET_PRICE.newpet})`)) return; if(!tamaPay(PET_PRICE.newpet)) return; }
-  Object.assign(t,{pet:k,food:80,fun:80,poops:[],gone:false,sad:0,poopIn:200}); ST.tamaPick=null; PR=null; save(); render();
+  Object.assign(t,{pet:k,food:80,fun:80,poops:[],gone:false,sad:0,poopIn:360,clean:100}); ST.tamaPick=null; PR=null; save(); render();
   setTimeout(()=>{ if(PR){ prDo('happy',2000); prSay('Nice to meet you! 💗',3000);} },300);
 }
 async function tamaBg(i){
   const m=me(), t=tamaOf(m); if(t.bg===i) return;
   if(!await ask(`Move to this new home for ${PET_PRICE.bg} ⭐?`,`Move (⭐${PET_PRICE.bg})`)) return;
-  if(!tamaPay(PET_PRICE.bg)) return; t.bg=i; t.poops=[]; ST.tamaPick=null; PR=null; save(); render(); toast('Welcome to your new home! 🏡');
+  if(!tamaPay(PET_PRICE.bg)) return; t.bg=i; t.poops=[]; t.clean=100; ST.tamaPick=null; PR=null; save(); render(); toast('Welcome to your new home! 🏡');
 }
 async function tamaBack(){ const t=tamaOf(me());
   if(!await ask(`Bring your ${PET_NAME(t.pet).toLowerCase()} home for ${PET_PRICE.back} ⭐?`,`Bring back (⭐${PET_PRICE.back})`)) return;
-  if(!tamaPay(PET_PRICE.back)) return; Object.assign(t,{gone:false,food:70,fun:70,poops:[],sad:0}); PR=null; save(); render();
+  if(!tamaPay(PET_PRICE.back)) return; Object.assign(t,{gone:false,food:70,fun:70,poops:[],sad:0,clean:100}); PR=null; save(); render();
   setTimeout(()=>{ if(PR){ prDo('happy',2200); prSay('I missed you! 💗',3000);} },300); }
 function petThumb(k){ return `<canvas width="${TAMA_ART.pets[k].w}" height="${TAMA_ART.pets[k].h}" data-petthumb="${k}"></canvas>`; }
 function drawPetThumbs(){ document.querySelectorAll('canvas[data-petthumb]').forEach(cv=>{ const k=cv.dataset.petthumb, P=TAMA_ART.pets[k], im=tamaImg('pet',k);
